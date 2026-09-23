@@ -32,10 +32,17 @@ Thumbs.db
 *.key
 secrets.*
 
-# Prebuilt APK for direct install (tracked on purpose)
-!/apk/*.apk
+# Installers are published only as GitHub Release assets.
 
 # Signing material never enters the repo
 *.jks
 *.keystore
 keystore.properties
+/.signing/
+/outputs/releases/
+/windows/
+/outputs/compliance/
+/outputs/product-checks/
+/apk/
+/site/
+/docs/images/

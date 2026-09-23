@@ -27,8 +27,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var prefs: Prefs
     private lateinit var container: LinearLayout
-    private val a11yComponent =
-        "com.jev.probe/com.google.android.accessibility.selecttospeak.SelectToSpeakService"
+    private val a11yComponent get() =
+        "${packageName}/com.google.android.accessibility.selecttospeak.SelectToSpeakService"
 
     private val accent = Color.parseColor("#3A7AFE")
     private val green = Color.parseColor("#16A34A")
@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity() {
     private fun build() {
         container.removeAllViews()
 
-        container.addView(text("Jev 聊天助手", 24f, ink, bold = true))
+        container.addView(text("ChatHelp 智谱助手", 24f, ink, bold = true))
         container.addView(text("在聊天 App 旁读对方消息（已支持微信、QQ、X、飞书），给出判断和候选回复。发送始终由你手动点。",
             13f, sub).apply { setPadding(0, dp(6), 0, dp(16)) })
 
@@ -73,6 +73,8 @@ class MainActivity : AppCompatActivity() {
 
         // Readiness card
         container.addView(statusCard(ready, a11y, overlay, key))
+        container.addView(text("默认使用智谱 GLM-4-Flash 免费模型；本机中文 OCR 免费、离线可用。先在设置中填写智谱 API Key。",
+            13f, sub).apply { setPadding(0, dp(10), 0, 0) })
 
         // Permission checklist
         container.addView(sectionLabel("权限设置"))
@@ -92,6 +94,9 @@ class MainActivity : AppCompatActivity() {
         container.addView(sectionLabel("其他"))
         container.addView(actionRow("设置", "密钥 · 模型 · 关系 · 透明度 · 会话白名单") {
             startActivity(Intent(this, SettingsActivity::class.java))
+        })
+        container.addView(actionRow("关于、开源许可与隐私", "非官方修改版 · 原作者署名 · 数据使用说明") {
+            startActivity(Intent(this, AboutActivity::class.java))
         })
 
         // Master toggle

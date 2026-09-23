@@ -39,6 +39,7 @@ class VisionClient(private val prefs: Prefs) {
 
     /** Generic single-question call against the image (used by the settings test). */
     fun ask(imageBase64Jpeg: String, prompt: String): String {
+        if (!prefs.visionEnabled) throw ApiException(Route.VISION, null, "云端图片理解未启用，本机 OCR 不受影响")
         val url = prefs.visionEndpoint()
         // Image first, then text: DashScope compatible-mode requires this order.
         val content = JSONArray()
@@ -53,8 +54,7 @@ class VisionClient(private val prefs: Prefs) {
             .put("messages", messages)
             .put("temperature", 0.0)
         val resp = HttpJson.post(url, prefs.effectiveVisionKey(), body, Route.VISION, HttpJson.headersFor(url))
-        return resp.optJSONArray("choices")?.optJSONObject(0)
-            ?.optJSONObject("message")?.optString("content") ?: ""
+        return ModelJson.content(resp, Route.VISION)
     }
 
     companion object {

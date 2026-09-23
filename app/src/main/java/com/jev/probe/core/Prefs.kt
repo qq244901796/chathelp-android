@@ -20,7 +20,50 @@ class Prefs(context: Context, prefsName: String = PREFS_MAIN) {
      * throwaway instances behind the settings test buttons and the KB self-check
      * have nothing to carry over, and used to print one migration line per tap.
      */
-    init { if (prefsName == PREFS_MAIN) migrateIfNeeded() }
+    init {
+        if (prefsName == PREFS_MAIN) {
+            // Freeze legacy implicit defaults BEFORE changing the defaults for new installs.
+            migrateBigModelDefaults()
+            migrateIfNeeded()
+        }
+    }
+
+    private fun migrateBigModelDefaults() {
+        if (sp.getBoolean(K_MIGRATED_GLM, false)) return
+        val existing = sp.all.isNotEmpty()
+        val edit = sp.edit().putBoolean(K_MIGRATED_GLM, true)
+        if (existing) {
+            val provider = sp.getString(K_JUDGE_PROVIDER, PROVIDER_OPENROUTER) ?: PROVIDER_OPENROUTER
+            val defaults = mapOf(
+                K_JUDGE_PROVIDER to provider,
+                K_JUDGE_BASE to defaultJudgeBase(provider),
+                K_JUDGE_MODEL to defaultJudgeModel(provider),
+                K_REPLY_BASE to OPENROUTER_REPLY_BASE,
+                K_REPLY_MODEL to OPENROUTER_REPLY_MODEL
+            )
+            defaults.forEach { (key, value) -> if (!sp.contains(key)) edit.putString(key, value) }
+        }
+        edit.apply()
+    }
+
+    /** Explicit opt-in: update both text routes together and discard foreign credentials. */
+    fun applyBigModelPreset() {
+        val sameProvider = judgeProvider == PROVIDER_BIGMODEL &&
+            sameHost(judgeBaseUrl, BIGMODEL_BASE)
+        sp.edit()
+            .putString(K_JUDGE_PROVIDER, PROVIDER_BIGMODEL)
+            .putString(K_JUDGE_BASE, BIGMODEL_BASE)
+            .putString(K_JUDGE_MODEL, BIGMODEL_MODEL)
+            .putString(K_JUDGE_KEY, if (sameProvider) judgeKey else "")
+            .putString(K_REPLY_BASE, BIGMODEL_BASE)
+            .putString(K_REPLY_MODEL, BIGMODEL_MODEL)
+            .putString(K_REPLY_KEY, "")
+            .putString(K_VISION_KEY, "")
+            .putBoolean(K_VISION_ENABLED, false)
+            .putString(K_OCR_ENGINE, OCR_MLKIT)
+            .remove(K_LEGACY_KEY)
+            .apply()
+    }
 
     /**
      * v1.2 -> v1.3: the single `openrouter_key` becomes the judge route's key.
@@ -42,14 +85,14 @@ class Prefs(context: Context, prefsName: String = PREFS_MAIN) {
 
     // ---------------------------------------------------------------- judge
 
-    /** "openrouter" | "typesafe" | "custom". */
+    /** "bigmodel" | "openrouter" | "typesafe" | "custom" (legacy Jev). */
     var judgeProvider: String
-        get() = sp.getString(K_JUDGE_PROVIDER, PROVIDER_OPENROUTER) ?: PROVIDER_OPENROUTER
+        get() = sp.getString(K_JUDGE_PROVIDER, PROVIDER_BIGMODEL) ?: PROVIDER_BIGMODEL
         set(v) = sp.edit().putString(K_JUDGE_PROVIDER, v.trim()).apply()
 
     /** Host root; the path is appended per provider (see [judgeEndpoint]). */
     var judgeBaseUrl: String
-        get() = sp.getString(K_JUDGE_BASE, DEFAULT_JUDGE_BASE_OPENROUTER) ?: DEFAULT_JUDGE_BASE_OPENROUTER
+        get() = sp.getString(K_JUDGE_BASE, defaultJudgeBase(judgeProvider)) ?: defaultJudgeBase(judgeProvider)
         set(v) = sp.edit().putString(K_JUDGE_BASE, v.trim()).apply()
 
     var judgeKey: String
@@ -57,7 +100,7 @@ class Prefs(context: Context, prefsName: String = PREFS_MAIN) {
         set(v) = sp.edit().putString(K_JUDGE_KEY, v.trim()).apply()
 
     var judgeModel: String
-        get() = sp.getString(K_JUDGE_MODEL, DEFAULT_JUDGE_MODEL_OPENROUTER) ?: DEFAULT_JUDGE_MODEL_OPENROUTER
+        get() = sp.getString(K_JUDGE_MODEL, defaultJudgeModel(judgeProvider)) ?: defaultJudgeModel(judgeProvider)
         set(v) = sp.edit().putString(K_JUDGE_MODEL, v.trim()).apply()
 
     /** Back-compat alias so older call sites keep compiling. */
@@ -83,6 +126,11 @@ class Prefs(context: Context, prefsName: String = PREFS_MAIN) {
         set(v) = sp.edit().putString(K_REPLY_MODEL, v.trim()).apply()
 
     // --------------------------------------------------------------- vision
+
+    /** Cloud image understanding is separate from bundled OCR and is opt-in. */
+    var visionEnabled: Boolean
+        get() = sp.getBoolean(K_VISION_ENABLED, false)
+        set(v) = sp.edit().putBoolean(K_VISION_ENABLED, v).apply()
 
     /**
      * Blank = the OpenRouter vision default. Deliberately does NOT follow
@@ -188,15 +236,24 @@ class Prefs(context: Context, prefsName: String = PREFS_MAIN) {
     // ------------------------------------------------------------- helpers
 
     /** Reply route key, falling back to the judge key. */
-    fun effectiveReplyKey(): String = replyKey.ifBlank { judgeKey }
+    fun effectiveReplyKey(): String = replyKey.ifBlank {
+        if (sameHost(replyBaseUrl, judgeBaseUrl)) judgeKey else ""
+    }
 
     /** Vision route key, falling back to reply then judge. */
-    fun effectiveVisionKey(): String = visionKey.ifBlank { effectiveReplyKey() }
+    fun effectiveVisionKey(): String = visionKey.ifBlank {
+        when {
+            sameHost(visionBaseUrl, replyBaseUrl) -> effectiveReplyKey()
+            sameHost(visionBaseUrl, judgeBaseUrl) -> judgeKey
+            else -> ""
+        }
+    }
 
     /** Full POST URL for the Jev decisions call, per provider. */
     fun judgeEndpoint(): String {
         val base = judgeBaseUrl.trim().trimEnd('/')
         return when (judgeProvider) {
+            PROVIDER_BIGMODEL -> chatEndpoint(base)
             PROVIDER_TYPESAFE -> "$base/v1/systemone"
             PROVIDER_CUSTOM -> judgeBaseUrl.trim()   // user supplies the full URL
             else -> "$base/alpha/decisions"
@@ -204,12 +261,12 @@ class Prefs(context: Context, prefsName: String = PREFS_MAIN) {
     }
 
     /** Full POST URL for the OpenAI-compatible chat completions call. */
-    fun replyEndpoint(): String = "${replyBaseUrl.trim().trimEnd('/')}/chat/completions"
+    fun replyEndpoint(): String = chatEndpoint(replyBaseUrl)
 
     /** Same shape as [replyEndpoint]; blank falls back to the OpenRouter default. */
     fun visionEndpoint(): String {
         val base = visionBaseUrl.trim().ifBlank { DEFAULT_VISION_BASE }
-        return "${base.trimEnd('/')}/chat/completions"
+        return chatEndpoint(base)
     }
 
     fun isAllowed(title: String?): Boolean {
@@ -230,6 +287,8 @@ class Prefs(context: Context, prefsName: String = PREFS_MAIN) {
 
         private const val K_LEGACY_KEY = "openrouter_key"
         private const val K_MIGRATED_V13 = "prefs_migrated_v13"
+        private const val K_MIGRATED_GLM = "prefs_migrated_glm"
+        private const val K_VISION_ENABLED = "vision_enabled"
         private const val K_JUDGE_PROVIDER = "judge_provider"
         private const val K_JUDGE_BASE = "judge_base_url"
         private const val K_JUDGE_KEY = "judge_key"
@@ -256,6 +315,7 @@ class Prefs(context: Context, prefsName: String = PREFS_MAIN) {
         private const val K_AUTO = "auto_analyze"
 
         const val PROVIDER_OPENROUTER = "openrouter"
+        const val PROVIDER_BIGMODEL = "bigmodel"
         const val PROVIDER_TYPESAFE = "typesafe"
         const val PROVIDER_CUSTOM = "custom"
 
@@ -269,8 +329,12 @@ class Prefs(context: Context, prefsName: String = PREFS_MAIN) {
         const val DEFAULT_JUDGE_MODEL_TYPESAFE = "jev-latest"
 
         // Reply route presets (OpenAI-compatible chat completions).
-        const val DEFAULT_REPLY_BASE = "https://openrouter.ai/api/v1"
-        const val DEFAULT_REPLY_MODEL = "deepseek/deepseek-chat-v3.1"
+        const val BIGMODEL_BASE = "https://open.bigmodel.cn/api/paas/v4"
+        const val BIGMODEL_MODEL = "glm-4-flash-250414"
+        const val DEFAULT_REPLY_BASE = BIGMODEL_BASE
+        const val DEFAULT_REPLY_MODEL = BIGMODEL_MODEL
+        const val OPENROUTER_REPLY_BASE = "https://openrouter.ai/api/v1"
+        const val OPENROUTER_REPLY_MODEL = "deepseek/deepseek-chat-v3.1"
         const val DEEPSEEK_BASE = "https://api.deepseek.com/v1"
         const val DEEPSEEK_MODEL = "deepseek-chat"
         const val DASHSCOPE_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
@@ -282,5 +346,30 @@ class Prefs(context: Context, prefsName: String = PREFS_MAIN) {
         const val DASHSCOPE_VISION_MODEL = "qwen-vl-max"
 
         const val DEFAULT_REL = "对方是我的伴侣；from=me 的是我发的，from=other 的是对方发的"
+
+        fun defaultJudgeBase(provider: String): String = when (provider) {
+            PROVIDER_BIGMODEL -> BIGMODEL_BASE
+            PROVIDER_TYPESAFE -> DEFAULT_JUDGE_BASE_TYPESAFE
+            PROVIDER_CUSTOM -> ""
+            else -> DEFAULT_JUDGE_BASE_OPENROUTER
+        }
+
+        fun defaultJudgeModel(provider: String): String = when (provider) {
+            PROVIDER_BIGMODEL -> BIGMODEL_MODEL
+            PROVIDER_TYPESAFE -> DEFAULT_JUDGE_MODEL_TYPESAFE
+            PROVIDER_CUSTOM -> ""
+            else -> DEFAULT_JUDGE_MODEL_OPENROUTER
+        }
+
+        fun chatEndpoint(base: String): String {
+            val trimmed = base.trim().trimEnd('/')
+            return if (trimmed.endsWith("/chat/completions")) trimmed else "${trimmed}/chat/completions"
+        }
+
+        fun sameHost(first: String, second: String): Boolean = runCatching {
+            val a = java.net.URI(first).host
+            val b = java.net.URI(second).host
+            !a.isNullOrBlank() && a.equals(b, ignoreCase = true)
+        }.getOrDefault(false)
     }
 }

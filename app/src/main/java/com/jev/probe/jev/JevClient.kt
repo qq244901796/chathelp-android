@@ -24,9 +24,12 @@ class JevClient(prefs: Prefs) {
     fun draftAndRank(
         snapshot: ChatSnapshot,
         relationship: String,
-        ctx: ChatContext? = null
+        ctx: ChatContext? = null,
+        isCurrent: () -> Boolean = { true }
     ): List<RankedReply> {
+        if (!isCurrent()) throw InterruptedException()
         val candidates = replyClient.draft(snapshot, relationship, ctx)
+        if (!isCurrent()) throw InterruptedException()
         return judgeClient.rank(snapshot, relationship, candidates, ctx)
     }
 
@@ -34,7 +37,10 @@ class JevClient(prefs: Prefs) {
     fun analyze(snapshot: ChatSnapshot, relationship: String, ctx: ChatContext? = null): Analysis {
         val a = judge(snapshot, relationship, ctx)
         if (a.error != null) return a
-        val ranked = try { draftAndRank(snapshot, relationship, ctx) } catch (e: Exception) { emptyList() }
+        val ranked = try { draftAndRank(snapshot, relationship, ctx) } catch (e: Exception) {
+            if (e is InterruptedException) throw e
+            return a.copy(error = e.message ?: "候选回复请求失败")
+        }
         return a.copy(rankedReplies = ranked)
     }
 }

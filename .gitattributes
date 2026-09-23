@@ -1,0 +1,5 @@
+# Preserve upstream notice bytes, including their intentional whitespace.
+licenses/** -text -whitespace
+THIRD_PARTY_NOTICES.txt -text -whitespace
+app/src/main/assets/licenses/** -text -whitespace
+app/src/main/assets/legal/THIRD_PARTY_NOTICES.txt -text -whitespace

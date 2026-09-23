@@ -1,290 +1,74 @@
-<div align="center">
+# ChatHelp 智谱助手 · Android
 
-<img src="docs/images/logo.png" width="150" alt="Jev 聊天助手" />
+基于 [jev-chat/jev-chat-jarvis](https://github.com/jev-chat/jev-chat-jarvis) 改造的非官方 Android 聊天副驾，感谢 Finderchangchang 与 jev-chat contributors。默认使用国内智谱 BigModel 的免费 `glm-4-flash-250414` 模型完成聊天判断、候选回复和排序；保留免费的本机中文 OCR。不代表原项目、智谱或聊天平台官方背书。
 
-# Jev 聊天助手
+在微信、QQ 等聊天应用中读取当前屏幕，展示七项判断与三条候选回复。点选后只填入输入框，发送由用户手动完成。首版重点验证微信和 QQ，其他上游适配器继续保留。
 
-**装在手机上的「对话副驾」：你在任何聊天 App 里聊天，它在旁边读懂对方、告诉你该怎么回，一键填进输入框，发不发由你。**
+## 安装和配置
 
-[![Stars](https://img.shields.io/github/stars/jev-chat/jev-chat-jarvis?style=flat-square&logo=github&label=Stars)](https://github.com/jev-chat/jev-chat-jarvis/stargazers)
-[![Forks](https://img.shields.io/github/forks/jev-chat/jev-chat-jarvis?style=flat-square&logo=github&label=Forks)](https://github.com/jev-chat/jev-chat-jarvis/forks)
-[![Version](https://img.shields.io/badge/%E7%89%88%E6%9C%AC-v1.3-1f6feb?style=flat-square)](CHANGELOG.md)
-[![Android](https://img.shields.io/badge/Android-11%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](#快速开始)
-[![License](https://img.shields.io/github/license/jev-chat/jev-chat-jarvis?style=flat-square)](LICENSE)
+1. 从 [本分支 Release](https://github.com/qq244901796/chathelp-android/releases/tag/v1.4.1-glm) 下载 `chathelp-android-1.4.1-glm-release.apk`。应用名为「ChatHelp 智谱助手」，包名 `com.jev.probe.glm.release`，适用于 Android 11+ 的 ARM64 手机，可覆盖升级本分支 1.4-glm 发布版，与原版和调试版共存。
+2. 在 [智谱控制台](https://bigmodel.cn/) 创建自己的通用 API Key。
+3. 打开「设置」，新安装已经选好智谱；旧配置可点击「一键应用智谱免费预设」。在判断接口中填写智谱密钥，回复密钥留空即可。
+4. 点击「测试完整流程」，使用内置虚构对话检查判断、回复、排序，然后点击页面底部「保存」。
+5. 按主页向导开启无障碍、悬浮窗，并根据手机系统允许后台运行。在聊天页面查看建议，自行确认填入的内容后发送。
 
-[官网](https://chatjevs.com) · [下载 APK](apk/jev-assistant-v1.3-release.apk) · [历史版本](https://github.com/jev-chat/jev-chat-jarvis/releases) · [更新日志](CHANGELOG.md) · [macOS 版](https://github.com/jev-chat/jev-chat-mac) · [Windows 版](https://github.com/jev-chat/jev-chat-windows)
+| 项目 | 默认值 |
+| --- | --- |
+| 判断协议 | BigModel 标准聊天接口 |
+| API Base URL | `https://open.bigmodel.cn/api/paas/v4` |
+| 请求路径 | `/chat/completions` |
+| 判断、回复模型 | `glm-4-flash-250414` |
+| 中文 OCR | 随 APK 打包的 ML Kit，在本机运行 |
+| 云端图片理解 | 默认关闭，不参与聊天采集 |
+| 聊天历史记录 | 默认关闭，仅在用户开启后存本机 |
 
-</div>
+免费指上述模型当前的通用 API 推理价格，不代表无限并发或未来价格保证。参见 [智谱官方定价](https://docs.bigmodel.cn/cn/guide/start/pricing) 和 [速率限制](https://docs.bigmodel.cn/cn/api/rate-limit)。程序不会自动改用收费模型。其他供应商预设属于高级配置，费用由对应平台决定。
 
-## ❤️赞助商
+## 工作方式
 
-> [想出现在这里？](#交流群--需求收集)
+无障碍读取文字 → 读不到时本机 OCR → 智谱七项判断 → 生成三条回复 → 智谱排序 → 悬浮窗展示 → 复制或填入。
 
-<details open>
-<summary>点击折叠</summary>
+原版 Jev 的判断使用专用 `state/questions` 协议。本分支新增 BigModel 适配，将既有判断标准转成提示词并校验 JSON 回答；原有 Jev 供应商配置仍可使用。
 
-<table>
-<tr>
-<td width="240"><a href="https://faka.rainlanguage.top"><img src="docs/images/sponsors/xiaoyou.png" alt="小优店铺" width="220"></a></td>
-<td>感谢 <b>小优店铺</b> 赞助了本项目！小优店铺是一家数字商品与账号服务店铺，为本项目的用户提供选购渠道。<a href="https://faka.rainlanguage.top">点此前往</a>。</td>
-</tr>  <tr>
-  <td width="240"><a href="https://agent.ai-tools.cn" target="_blank"><img src="docs/images/sponsors/vytal.jpg" alt="速创猫 Vytal" width="220"></a></td>
-  <td>感谢 <b>速创猫 Vytal</b> 赞助了本项目！速创猫 Vytal 通过可复用的视频工作流，降低内容制作门槛，服务内容创作者、培训机构及中小团队。<a href="https://agent.ai-tools.cn" target="_blank">点此前往</a>。</td>
-  </tr>
-</table>
+同一进程的智谱请求串行，最多尝试三次可重试的网络/限流错误。密钥错误不重试，格式异常不会补成固定回复。切换应用、联系人或聊天内容后，过期结果不再显示。评分、把握度和排序比例只是模型估计。
 
-</details>
+## OCR 与数据
 
-## 截图
+- 保留 `com.google.mlkit:text-recognition-chinese:16.0.1` bundled 中文识别模型，不需要 OCR API Key，识别模型不依赖首次联网下载或 Google Play 服务。
+- 「读不到文字时使用本机 OCR」开关可以关闭；关闭后，无障碍不暴露正文的界面可能无法读取。
+- 通用「截屏识别一次」沿用上游行为：不区分说话方，界面会标注；按已知气泡矩形识别时保留说话方。
+- 本机 OCR 不向模型接口上传截图。识别出的聊天文字会在分析时发送到配置的模型接口。
+- ML Kit 可能向 Google 发送性能和使用量统计，以及请求设备兼容信息；“离线可识别”不代表 SDK 完全不联网。详见 [隐私说明](PRIVACY.md) 及 [ML Kit 官方条款](https://developers.google.com/ml-kit/terms)。
+- 云端图片理解是单独的可选接口，目前仅保留手动连通测试；关闭时不会发出视觉请求。
+- 密钥保存在应用私有设置中，不写入源码或日志。密钥只在相同接口域名之间继承，切换预设不会把智谱密钥发给其他服务商。
+- 联系人、知识库和用户主动开启的历史记录继续只存本机。没有自建中转服务器。
 
-<table align="center">
-<tr>
-<td align="center"><img src="docs/images/overlay.png" width="300" alt="悬浮窗：聊天上方的 Jev 分析面板" /><br/><sub>悬浮窗：危险等级、对方真实意图、排好序的 3 条候选回复</sub></td>
-<td align="center"><img src="docs/images/settings.png" width="300" alt="设置页" /><br/><sub>设置页：判断 / 回复 / 视觉三路接口分别可配</sub></td>
-</tr>
-</table>
+## 开发与验证
 
-## 为什么用它
+需要 JDK 17、Android SDK 35，手机 Android 11+、ARM64。配置 `local.properties` 中的 SDK 路径，或设置 `ANDROID_HOME`。
 
-- **它先判断，再写字。** 大多数工具直接让模型编一句回复。Jev 先用判断模型给出对方真实意图、危险等级、该不该马上回，再据此起草回复。
-- **不动你的聊天软件。** 不 hook、不改包、不走任何 App 的接口或账号、不读数据库，只用系统无障碍服务读「屏幕上正在显示的对话」。微信这种混淆节点的也能读到。
-- **发送权永远在你手里。** 程序只把回复填进输入框，从不自动发送，不碰转账 / 红包 / 收款。
-- **一套内核，多平台。** 微信、QQ、X 真机跑通，飞书靠 OCR 补正文。新增一个 App 只需写一个几十行的适配器。
-- **它认识你的人和事。** 本地知识库与联系人档案，分析时自动带上命中的笔记和这个人的历史，回复不会和你的设定打架。
-- **接口自己配。** 判断 / 回复 / 视觉三路分别可填，用你自己的密钥和额度，不经过任何中间服务器。
-- **隐私在本机。** 密钥存 App 私有空间，聊天内容只在分析那一刻发给你配置的接口，不落盘、不进日志。
-
-## 平台支持
-
-| 平台 | 状态 | 采集方式 | 备注 |
-|---|---|---|---|
-| 微信 Android | ✅ 全链路 | 伪装系统无障碍服务读气泡节点 | 8.0.52+ 混淆节点，伪装后 8.0.78 实测可读 |
-| QQ Android | ✅ 全链路 | 无障碍读节点 | 9.3.50 实测（群聊）；1v1 按同结构推断 |
-| X / Twitter 私信 | ✅ 全链路 | 解析 Compose 节点的 content-desc | 12.25 实测，中文界面；英文界面未验 |
-| 飞书 / Lark | ✅ OCR 兜底（真机验证） | 无障碍读气泡矩形 + ML Kit 离线 OCR 识别正文 | 正文自绘不在无障碍树里，1.3 起对每个气泡矩形做 OCR；我/对方按已读状态判 |
-| 任意其它 App | ✅ 手动 | 悬浮窗菜单「截屏识别一次」整屏 OCR | 不自动、不分我/对方（全部当作对方所说并在面板标注） |
-| 桌面端 / 网页 | ⏳ 规划 | 截图 + OCR / 视觉 | 同一内核，换采集方式 |
-
-本项目只读你自己设备上、你自己有权查看的聊天，不针对任何单一平台。
-
-## 快速开始
-
-**1. 装包。** 仓库里有签好名的 release 包：[`apk/jev-assistant-v1.3-release.apk`](apk/jev-assistant-v1.3-release.apk)（Android 11+）。各版本安装包也在 [Releases](https://github.com/jev-chat/jev-chat-jarvis/releases)。
-
-```bash
-adb install -r apk/jev-assistant-v1.3-release.apk
+```powershell
+.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+.\gradlew.bat :app:connectedDebugAndroidTest
 ```
 
-**2. 填密钥。** 打开 App → 设置 →「接口」分三张卡：判断接口 / 回复接口 / 视觉接口。最简单只填「判断接口」一栏的 [OpenRouter](https://openrouter.ai/) API Key，其余两栏留空会自动继承这把密钥就能用。想换回复模型（默认 `deepseek/deepseek-chat-v3.1`，国内 Gemini / OpenAI 会被区域限制）就在「回复接口」选预设（OpenRouter / DeepSeek 官方 / 通义兼容）或自填地址，每张卡都有独立的一键连通测试。
+JVM 测试使用本地 HTTP 服务和虚构数据，覆盖协议、解析、重试、串行与过期结果。设备测试覆盖真实 Android 配置迁移、禁用视觉，以及合成中文图片的 ML Kit 识别。真实智谱响应需要用户在应用中配置有效密钥后测试。
 
-**3. 开权限。** 按主页向导开三项：
+详细说明见 [智谱改造说明](docs/BIGMODEL.md)。上游 `docs/v1.3-*` 与 `tools/jev/` 是原 Jev 实现的历史资料，不能用于验证 GLM 输出质量。
 
-- 无障碍（读消息；升级到 1.3 后需要把无障碍关掉再打开一次，截屏能力才生效）
-- 悬浮窗 / 显示在其他应用上层（展示分析）
-- 自启动 + 省电无限制（小米 / HyperOS 必做，否则后台被冻结读不到消息）
+构建可分发版本（设置 JDK 17 后执行）：
 
-装过 debug 包的要先卸载再装 release（签名不同），卸载会清掉密钥和设置。小米 / HyperOS 重装后悬浮窗权限会被重置，装完按向导再开一次。
-
-## 功能
-
-### 判断与候选回复
-
-- 判断模型一次给出：对方真实意图、危险等级（1–9）、对方要什么、该不该马上回、最佳动作。约 1 秒，带把握度。
-- 生成模型起草 3 条口语化候选，判断模型按「最合适」排序并给出占比。
-- 悬浮窗里点一下复制或填入，填入用 `ACTION_SET_TEXT`，失败自动退到剪贴板粘贴，**任何情况下都不发送**。
-
-### 知识库与联系人
-
-在设置 → 分析 →「知识库与联系人」。
-
-- **笔记**：标题 / 内容 / 标签 / 常驻。常驻笔记每次都带；其它笔记要标签或标题出现在会话标题或最近 6 条消息里才带，最多 5 条。支持多行文本粘贴导入，空行分段，每段首行当标题。
-- **联系人**：姓名 / 别名（每行一个）/ 关系 / 备注。会话标题匹配姓名或任一别名时生效，自动忽略群名尾部人数、首尾空白和大小写差异。悬浮窗气泡长按可把当前会话一键存为联系人。
-- **历史**：「记录聊天历史（只存本机）」默认关闭；开启后每次分析带上最近 N 条（默认 30），并自动去掉屏幕上已经显示过的部分。
-- **清除**：知识库与历史都存在 App 私有目录，设置里「清空知识库与历史」一键删除，不进日志、不进 git。
-- 悬浮窗面板顶部会显示一行「知识库 N 条 · 历史 M 条」，方便确认到底带了什么。
-
-### 接口与模型
-
-- 判断 / 回复 / 视觉三路的地址、密钥、模型分别可填。
-- 内置 OpenRouter、TypeSafe 直连、DeepSeek 官方、通义兼容四套预设，每张卡一键连通测试。
-- 只有一把密钥也能用：回复、视觉留空自动继承判断接口的配置。
-- 从旧版本升级时，原来那把密钥会一次性迁移到新的三卡结构。
-
-### 采集与 OCR
-
-- 一个 App 一个适配器，服务按前台包名分发，适配器只负责把当前窗口变成「标题 + 消息列表」。
-- 无障碍树里没有正文时，自动截屏并用 ML Kit 中文离线模型识别，不上传图片、不需要 Google 服务。
-- 截屏有限频和失败退避，不会每秒连拍；识别时会躲开自己的悬浮窗。
-- 任何 App 都能在悬浮窗菜单里手动触发「截屏识别一次」。
-
-## 常见问题
-
-<details>
-<summary><b>它会替我发消息吗？</b></summary>
-
-不会。程序只把选中的回复填进输入框，发送键永远由你自己点。转账、红包、收款一律不碰。
-
-</details>
-
-<details>
-<summary><b>需要 root 或 Xposed 吗？会不会封号？</b></summary>
-
-不需要 root，也不用装任何模块。它不修改聊天软件的安装包、不注入进程、不调用对方 App 的接口或账号体系，只读系统无障碍服务暴露出来的界面内容，和读屏软件的工作方式一样。
-
-</details>
-
-<details>
-<summary><b>我的聊天记录会被上传吗？</b></summary>
-
-聊天内容只在你触发分析的那一刻，发给你自己在设置里配置的模型接口。项目没有任何自建服务器，不收集、不落盘、不进日志。历史记录默认关闭，开启后也只存在手机的 App 私有目录里。
-
-</details>
-
-<details>
-<summary><b>悬浮球不见了，或者读不到消息怎么办？</b></summary>
-
-多半是国产 ROM 把后台进程冻结了。先确认无障碍、悬浮窗、自启动、省电无限制四项都开着，小米 / HyperOS 尤其要开后两项。重装后悬浮窗权限会被重置，按主页向导再开一次。在聊天界面里随便点一下通常能自愈。
-
-</details>
-
-<details>
-<summary><b>飞书里读不到正文？其它 App 能用吗？</b></summary>
-
-飞书的消息正文是自绘控件，无障碍树里没有文字，1.3 起改为对每个气泡矩形做离线 OCR。没有专门适配的 App，可以在悬浮窗菜单里点「截屏识别一次」，整屏 OCR 后同样能分析，只是不区分我方和对方。
-
-</details>
-
-<details>
-<summary><b>要花钱吗？</b></summary>
-
-软件本身免费开源。模型调用走你自己的 API Key，按用量在对应服务商那边结算，项目不经手任何费用。
-
-</details>
-
-<details>
-<summary><b>升级到 1.3 之后没反应？</b></summary>
-
-把系统设置里的无障碍开关关掉再打开一次。1.3 新增了截屏能力，服务需要重新绑定才会生效。
-
-</details>
-
-## 它怎么工作
-
-```
-微信 / QQ / X / 飞书 ──(无障碍读节点)──▶ 采集最近消息
-                                  │
-              ┌───────────────────┴───────────────────┐
-              ▼                                        ▼
-   Jev 判断（一次 7 道题）                    生成模型起草 3 条候选
-   意图 / 危险 / 需求 / 动作 / 该不该回          │
-              └───────────────────┬───────────────────┘
-                                  ▼
-                        Jev 给 3 条候选排序
-                                  ▼
-                半透明悬浮窗展示 → 复制 / 填入（不发送）
+```powershell
+python scripts/prepare_release_signing.py
+.\gradlew.bat :app:assembleRelease
 ```
 
-- **采集**：一个 App 一个适配器，服务按前台包名分发。适配器只负责把当前窗口变成「标题 + 消息列表（谁说的、说了什么）」，下游全部通用；树里没有正文时走截屏 + 离线 OCR 兜底（限频、失败退避，不会每秒连拍）。
-- **判断**：[Jev](https://docs.typesafe.ai/) 只回答选择 / 打分 / 是非，一次请求发全部题目，约 1 秒返回；命中知识库时 state 里会带 `background`（关系 + 联系人备注 + 命中笔记）和 `history`（历史消息）。
-- **回复**：生成模型起草 3 条候选，Jev 排序；提示词要求回复必须与知识库一致，不编造知识库没有的事实。
-- **回填**：`ACTION_SET_TEXT`，失败则剪贴板 + `ACTION_PASTE`，不发送。
+签名脚本只在首次运行时生成发布证书，重复执行会保留已有证书。请单独备份被 Git 忽略的 `.signing/`，后续更新必须复用相同签名。构建原始产物为 `app/build/outputs/apk/release/app-release.apk`；发布包不包含 API Key。签名配置和设备测试命令见 [发布构建说明](docs/BIGMODEL.md#发布构建)。
 
-<details>
-<summary><b>适配一个新的聊天 App</b></summary>
+## 来源与许可
 
-1. 在 `capture/ChatAppAdapter.kt` 实现 `ChatAppAdapter`：`pkg` 是包名，`extract(root, res)` 从无障碍树取出标题和消息列表（`Msg(side, text)`，`side` 为 `me` / `other`），不在聊天窗时返回 `null`。
-2. 在 `capture/ChatCaptureService.kt` 的 `adapters` 加一行。
-3. 判断、候选、悬浮窗、填入都不用动。
+保留上游 [LICENSE](LICENSE)、[NOTICE](NOTICE) 与 Git 历史，自有代码沿用 MIT；SDK 各受其原许可/服务条款约束，不能把整个 APK 宣称为 MIT。新增品牌图标区分修改版，当前分支移除原版旧 APK 和宣传入口。
 
-先用 `adb shell uiautomator dump` 看目标 App 暴露了什么，已有四个适配器覆盖了四种情况：
+详见 [来源](ABOUT.md)、[许可范围](LICENSING.md)、[第三方完整通知](THIRD_PARTY_NOTICES.txt)、[隐私说明](PRIVACY.md)、[测试范围](TESTING.md) 和 [变更记录](CHANGELOG.md)。上述关于与许可信息也可在应用内离线阅读。
 
-| App | 树的情况 | 适配器怎么做 |
-|---|---|---|
-| QQ | 节点开放，有 id | 正文 `id/mjn`、标题 `id/371`，按气泡贴哪侧头像判谁说的 |
-| 微信 | 对普通无障碍服务混淆节点 | 服务类名伪装成系统的 `SelectToSpeakService`，读 `id/bkl` 气泡，按左右判 |
-| X | Compose，无 id，text 为空 | 解析 content-desc `发件人：正文。时间。Read`，发件人是「你」即我方 |
-| 飞书 | 正文自绘，树里没有文字 | 树上拿 bubble_content_container 矩形与已读状态，OCR 每个矩形的正文 |
-
-适配器返回 `null` 表示不在聊天窗，返回空消息列表表示在聊天窗但树里没正文——只有后者会触发 OCR 兜底。
-
-QQ、X 全程只有一个 Activity，判「是不是聊天窗」要看树里有没有该有的节点（如输入框），不能看 Activity 名。
-
-</details>
-
-<details>
-<summary><b>构建与目录结构</b></summary>
-
-JDK 17 + Android SDK（platform 35 / build-tools 35）。
-
-```bash
-./gradlew assembleDebug      # app/build/outputs/apk/debug/app-debug.apk
-./gradlew assembleRelease    # 需要仓库外的签名 properties，路径由 JEV_KEYSTORE_PROPS 指定
-```
-
-- `app/` — Android 应用（Kotlin，传统 View）
-  - `capture/` 无障碍采集：`ChatAppAdapter.kt` 各 App 适配器、`ChatCaptureService.kt` 分发服务、前台保活、`ocr/` 截屏与离线识别
-  - `jev/` Jev 客户端与题目集 · `overlay/` 悬浮窗 · `core/` 配置与数据模型（含 `core/kb/` 知识库存储与上下文构建）
-  - `KnowledgeActivity` 知识库管理页（笔记 / 联系人）
-- `tools/jev/` — Jev 题目集与校准脚手架（Python）
-- `docs/` — 设计与验收文档
-- `apk/` — 签好名的 release 包
-
-</details>
-
-## 已知限制
-
-- **国产 ROM 后台冻结**：小米 / HyperOS 会杀后台进程，前台保活、自启动、省电无限制都配了仍可能被杀，气泡短暂消失，在聊天里再交互一下自愈。
-- **飞书正文靠 OCR**：飞书正文是自绘控件，无障碍树里只有气泡矩形，1.3 起对每个矩形做离线 OCR；我 / 对方按已读状态判断，判反时请用「存为联系人」并在备注里说明，或关掉自动分析改手动。
-- **X 只按中文界面验过**：分隔符 `：`、`上午 / 下午`、`Read` 是中文界面实测；英文界面只做了兜底，未验。
-- **群聊**：按一对一分析，「对方」与关系设定对群聊不准。
-- **中文**：Jev 主训练语言是英文，题目用英文、聊天内容保留中文；建议用自己的真实对话做一批标注校准（见 `tools/jev/`）。
-- 伪装无障碍服务是绕过微信混淆的手段，微信版本更新可能失效。
-- **知识库检索是标签/标题包含匹配**，不做语义检索，笔记请打好标签才能被命中。历史按「谁说 + 原文」去重，同一个人重复说同一句只记一次。
-- **OCR 依赖系统放行截屏**：无障碍服务要被系统允许截屏才能用，小米 / HyperOS 可能拒绝（面板会提示失败原因）；受保护窗口（`FLAG_SECURE`）截不到。
-- **OCR 只认屏幕上看得见的部分**：长消息被截断的部分读不到；识别有错字。
-- **包体变大**：ML Kit 中文离线模型让 APK 从约 12 MB 增至约 27 MB，且只打 arm64-v8a。
-
-## 交流群 / 需求收集
-
-**如需联系，请公众号私信。** 合作、赞助、反馈、进群失败、二维码过期，都走公众号私信，其它渠道不一定看得到。
-
-<p align="center"><img src="docs/images/wechat-mp.png" width="180" alt="公众号二维码" /></p>
-
-想听真实需求：你在哪个聊天 App 上最想要这个副驾？希望它判断什么、怎么提示、什么绝对不能碰？扫码进群直接说。**1 至 7 群已满，不要再扫；8、9 群任选一个，请勿重复加入。**
-
-<table align="center"><tr>
-  <td align="center"><img src="docs/images/wechat-group-8.png" width="200" alt="8 群" /><br/><b>8 群</b></td>
-  <td align="center"><img src="docs/images/wechat-group-9.png" width="200" alt="9 群" /><br/><b>9 群</b></td>
-</tr></table>
-
-<p align="center"><sub>以下七群已满，请勿再扫：</sub></p>
-
-<table align="center"><tr>
-  <td align="center"><img src="docs/images/wechat-group-1.png" width="80" alt="1 群（已满）" /><br/><sub>1 群</sub></td>
-  <td align="center"><img src="docs/images/wechat-group-2.png" width="80" alt="2 群（已满）" /><br/><sub>2 群</sub></td>
-  <td align="center"><img src="docs/images/wechat-group-3.png" width="80" alt="3 群（已满）" /><br/><sub>3 群</sub></td>
-  <td align="center"><img src="docs/images/wechat-group-4.png" width="80" alt="4 群（已满）" /><br/><sub>4 群</sub></td>
-  <td align="center"><img src="docs/images/wechat-group-5.png" width="80" alt="5 群（已满）" /><br/><sub>5 群</sub></td>
-  <td align="center"><img src="docs/images/wechat-group-6.png" width="80" alt="6 群（已满）" /><br/><sub>6 群</sub></td>
-  <td align="center"><img src="docs/images/wechat-group-7.png" width="80" alt="7 群（已满）" /><br/><sub>7 群</sub></td>
-</tr></table>
-
-<p align="center"><sub>群二维码 7 天有效（本批到 2026-09-29），过期了公众号私信要新码。</sub></p>
-
-## 姊妹项目
-
-同在 [jev-chat](https://github.com/jev-chat) 组织下：
-
-- [Jev 聊天助手 macOS 版](https://github.com/jev-chat/jev-chat-mac)：微信消息意图识别悬浮窗，看屏 + 本地小模型判断意图和风险，再按话术生成回复候选，纯只读。
-- [Jev 聊天助手 Windows 版](https://github.com/jev-chat/jev-chat-windows)：微信 Windows 4.x 旁挂的回复辅助，窗口截图 + 本地离线 OCR，3 条候选一键填入，发送永远手动。
-- [微墨 WeChat Ink](https://github.com/Snowwit88/wechat-ink)：微信公众号写作、配图与排版助手，支持资料核验、学术风图文和草稿发布。
-
-## 版权与许可
-
-Copyright © 2026 Finderchangchang 与 jev-chat 贡献者。代码以 [MIT](LICENSE) 协议开源，另见 [NOTICE](NOTICE)。
-
-- **可以商用**：个人和公司都可以使用、修改、再分发，或集成进自己的产品，不需要付费或事先授权。
-- **必须注明出处**：分发或商用时保留 LICENSE 与 NOTICE，并在产品「关于」页、说明文档或发布页写明来源。推荐写法：`基于 Jev 聊天助手（https://github.com/jev-chat/jev-chat-jarvis）二次开发`。
-- 不要用「Jev 聊天助手」「jev-chat」名称或 chatjevs.com 域名暗示由原作者出品或背书。
-
-**免责声明**：本项目只处理你自己设备上、你自己有权查看的聊天。请遵守微信、QQ、X、飞书等各软件的许可协议与当地法律法规，作者不对使用后果负责。
+Windows 修改版：[chathelp-windows](https://github.com/qq244901796/chathelp-windows)。Windows 保留 GPL 界面组件，组合程序按 GPLv3 分发，许可范围与安卓版不同。

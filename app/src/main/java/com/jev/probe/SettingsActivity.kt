@@ -68,43 +68,66 @@ class SettingsActivity : AppCompatActivity() {
 
         // =================== 接口 ===================
         root.addView(section("接口"))
+        val freeCard = card()
+        freeCard.addView(cardTitle("智谱免费模型"))
+        freeCard.addView(text("GLM-4-Flash-250414：判断、回复和排序共用一把智谱 API Key。免费政策及并发限制以智谱控制台为准。", 12f, sub))
+        freeCard.addView(text("下方按钮立即保存两路智谱预设，清除旧供应商密钥，并关闭云端图片理解。", 11f, sub))
+        freeCard.addView(cardBtn("一键应用智谱免费预设") {
+            prefs.applyBigModelPreset()
+            Toast.makeText(this, "已应用智谱预设，请填写智谱 API Key", Toast.LENGTH_LONG).show()
+            recreate()
+        })
+        root.addView(freeCard)
 
         // --- 判断接口（Jev） ---
         val judgeCard = card()
-        judgeCard.addView(cardTitle("判断接口（Jev）"))
+        judgeCard.addView(cardTitle("判断与排序接口"))
         judgeCard.addView(text("读对方消息、给意图判断和候选排序。必须配置。", 12f, sub))
 
-        val judgeBaseEdit = edit(prefs.judgeBaseUrl, Prefs.DEFAULT_JUDGE_BASE_OPENROUTER)
-        val judgeModelEdit = edit(prefs.judgeModel, Prefs.DEFAULT_JUDGE_MODEL_OPENROUTER)
+        val judgeBaseEdit = edit(prefs.judgeBaseUrl, Prefs.BIGMODEL_BASE)
+        val judgeModelEdit = edit(prefs.judgeModel, Prefs.BIGMODEL_MODEL)
         judgeProviderIdx = when (prefs.judgeProvider) {
-            Prefs.PROVIDER_TYPESAFE -> 1
-            Prefs.PROVIDER_CUSTOM -> 2
-            else -> 0
+            Prefs.PROVIDER_BIGMODEL -> 0
+            Prefs.PROVIDER_TYPESAFE -> 2
+            Prefs.PROVIDER_CUSTOM -> 3
+            else -> 1
         }
         judgeCard.addView(pills(
-            listOf("OpenRouter", "TypeSafe 直连", "自定义"), judgeProviderIdx) { idx ->
+            listOf("智谱免费", "OpenRouter", "TypeSafe", "自定义 Jev"), judgeProviderIdx) { idx ->
+            val oldBase = judgeBaseEdit.text.toString()
             judgeProviderIdx = idx
             when (idx) {
                 0 -> {
+                    judgeBaseEdit.setText(Prefs.BIGMODEL_BASE)
+                    judgeModelEdit.setText(Prefs.BIGMODEL_MODEL)
+                }
+                1 -> {
                     judgeBaseEdit.setText(Prefs.DEFAULT_JUDGE_BASE_OPENROUTER)
                     judgeModelEdit.setText(Prefs.DEFAULT_JUDGE_MODEL_OPENROUTER)
                 }
-                1 -> {
+                2 -> {
                     judgeBaseEdit.setText(Prefs.DEFAULT_JUDGE_BASE_TYPESAFE)
                     judgeModelEdit.setText(Prefs.DEFAULT_JUDGE_MODEL_TYPESAFE)
                 }
                 // Custom POSTs the box verbatim, so a preset HOST left in the box
                 // would hit the API root. Expand it into the full endpoint the
                 // preset would have used; anything hand-typed is left alone.
-                2 -> judgeBaseEdit.setText(expandJudgeUrl(judgeBaseEdit.text.toString()))
+                3 -> {
+                    judgeBaseEdit.setText(expandJudgeUrl(oldBase))
+                    if (Prefs.sameHost(oldBase, Prefs.BIGMODEL_BASE)) {
+                        judgeBaseEdit.setText("")
+                        judgeModelEdit.setText("")
+                    }
+                }
             }
+            if (!Prefs.sameHost(oldBase, judgeBaseEdit.text.toString())) judgeKeyEdit.setText("")
         })
         judgeCard.addView(label("Base URL"))
         judgeCard.addView(judgeBaseEdit)
-        judgeCard.addView(text("OpenRouter 拼 /alpha/decisions；TypeSafe 拼 /v1/systemone；自定义按原样 POST。",
+        judgeCard.addView(text("智谱使用标准聊天接口；其它选项保留原 Jev 判断协议。地址填服务商的 API Base URL。",
             11f, sub))
         judgeCard.addView(label("密钥"))
-        judgeCard.addView(edit(prefs.judgeKey, "sk-...", password = true).also { judgeKeyEdit = it })
+        judgeCard.addView(edit(prefs.judgeKey, "填写该服务商的 API Key", password = true).also { judgeKeyEdit = it })
         judgeCard.addView(label("模型"))
         judgeCard.addView(judgeModelEdit)
         val judgeResult = resultText()
@@ -140,7 +163,7 @@ class SettingsActivity : AppCompatActivity() {
                 main.post {
                     judgeResult.text = if (a.error != null) "失败（${ms}ms）：${a.error}"
                     else "成功 ${ms}ms · 意图=${a.trueIntent?.choice ?: "?"}" +
-                        "（置信 ${pct(a.trueIntent?.confidence)}）"
+                        "（模型估计 ${pct(a.trueIntent?.confidence)}）"
                 }
             }
         })
@@ -150,28 +173,32 @@ class SettingsActivity : AppCompatActivity() {
         // --- 回复接口 ---
         val replyCard = card()
         replyCard.addView(cardTitle("回复接口"))
-        replyCard.addView(text("生成 3 条候选回复。任何 OpenAI 兼容地址，填到 /v1 为止。", 12f, sub))
+        replyCard.addView(text("生成 3 条候选回复。智谱地址填到 /api/paas/v4；只在与判断接口同一域名时共用密钥。", 12f, sub))
 
         val replyBaseEdit = edit(prefs.replyBaseUrl, Prefs.DEFAULT_REPLY_BASE)
         val replyModelEdit = edit(prefs.replyModel, Prefs.DEFAULT_REPLY_MODEL)
         val replyIdx = when (prefs.replyBaseUrl.trim().trimEnd('/')) {
             Prefs.DEFAULT_REPLY_BASE -> 0
-            Prefs.DEEPSEEK_BASE -> 1
-            Prefs.DASHSCOPE_BASE -> 2
-            else -> 3
+            Prefs.OPENROUTER_REPLY_BASE -> 1
+            Prefs.DEEPSEEK_BASE -> 2
+            Prefs.DASHSCOPE_BASE -> 3
+            else -> 4
         }
         replyCard.addView(pills(
-            listOf("OpenRouter", "DeepSeek 官方", "通义兼容", "自定义"), replyIdx) { idx ->
+            listOf("智谱免费", "OpenRouter", "DeepSeek 官方", "通义兼容", "自定义"), replyIdx) { idx ->
+            val oldBase = replyBaseEdit.text.toString()
             when (idx) {
                 0 -> { replyBaseEdit.setText(Prefs.DEFAULT_REPLY_BASE); replyModelEdit.setText(Prefs.DEFAULT_REPLY_MODEL) }
-                1 -> { replyBaseEdit.setText(Prefs.DEEPSEEK_BASE); replyModelEdit.setText(Prefs.DEEPSEEK_MODEL) }
-                2 -> { replyBaseEdit.setText(Prefs.DASHSCOPE_BASE); replyModelEdit.setText(Prefs.DASHSCOPE_MODEL) }
+                1 -> { replyBaseEdit.setText(Prefs.OPENROUTER_REPLY_BASE); replyModelEdit.setText(Prefs.OPENROUTER_REPLY_MODEL) }
+                2 -> { replyBaseEdit.setText(Prefs.DEEPSEEK_BASE); replyModelEdit.setText(Prefs.DEEPSEEK_MODEL) }
+                3 -> { replyBaseEdit.setText(Prefs.DASHSCOPE_BASE); replyModelEdit.setText(Prefs.DASHSCOPE_MODEL) }
             }
+            if (!Prefs.sameHost(oldBase, replyBaseEdit.text.toString())) replyKeyEdit.setText("")
         })
         replyCard.addView(label("Base URL"))
         replyCard.addView(replyBaseEdit)
         replyCard.addView(label("密钥"))
-        replyCard.addView(edit(prefs.replyKey, "留空则用判断接口密钥", password = true).also { replyKeyEdit = it })
+        replyCard.addView(edit(prefs.replyKey, "同一服务商可留空共用判断密钥", password = true).also { replyKeyEdit = it })
         replyCard.addView(label("模型"))
         replyCard.addView(replyModelEdit)
         val replyResult = resultText()
@@ -179,6 +206,7 @@ class SettingsActivity : AppCompatActivity() {
             val base = replyBaseEdit.text.toString().trim()
             val model = replyModelEdit.text.toString().trim()
             val probe = draftPrefs(SCRATCH_REPLY) {
+                judgeBaseUrl = judgeBaseEdit.text.toString()
                 judgeKey = judgeKeyEdit.text.toString().trim()
                 replyBaseUrl = base.ifBlank { Prefs.DEFAULT_REPLY_BASE }
                 replyKey = replyKeyEdit.text.toString().trim()
@@ -202,10 +230,49 @@ class SettingsActivity : AppCompatActivity() {
         replyCard.addView(replyResult)
         root.addView(replyCard)
 
+        val flowCard = card()
+        flowCard.addView(cardTitle("完整聊天流程测试"))
+        flowCard.addView(text("使用内置的虚构对话，依次验证七项判断、三条回复和排序。无需打开微信或 QQ。", 12f, sub))
+        val flowResult = resultText()
+        flowCard.addView(cardBtn("测试完整流程") {
+            val provider = resolveJudgeProvider(judgeProviderIdx, judgeBaseEdit.text.toString())
+            val probe = draftPrefs("jev_probe_scratch_flow") {
+                judgeProvider = provider
+                judgeBaseUrl = judgeBaseEdit.text.toString().trim().ifBlank { defaultJudgeBase(provider) }
+                judgeModel = judgeModelEdit.text.toString().trim().ifBlank { defaultJudgeModel(provider) }
+                judgeKey = judgeKeyEdit.text.toString().trim()
+                replyBaseUrl = replyBaseEdit.text.toString().trim().ifBlank { Prefs.DEFAULT_REPLY_BASE }
+                replyModel = replyModelEdit.text.toString().trim().ifBlank { Prefs.DEFAULT_REPLY_MODEL }
+                replyKey = replyKeyEdit.text.toString().trim()
+            }
+            if (!probe.hasKey() || probe.effectiveReplyKey().isBlank()) {
+                flowResult.text = "请填写判断和回复所用服务商的密钥"
+                return@cardBtn
+            }
+            flowResult.text = "正在测试判断、回复、排序…"
+            worker.execute {
+                val started = System.currentTimeMillis()
+                val sample = ChatSnapshot("虚构测试会话", listOf(
+                    Msg("me", "明天下午三点在图书馆见面，可以吗？"),
+                    Msg("other", "可以，到时候联系。")))
+                try {
+                    val result = com.jev.probe.jev.JevClient(probe).analyze(sample, "普通朋友")
+                    main.post {
+                        flowResult.text = result.error?.let { "失败：${it}" }
+                            ?: "通过：完成七项判断和 ${result.rankedReplies.size} 条回复排序（${System.currentTimeMillis() - started}ms）"
+                    }
+                } catch (_: InterruptedException) { Thread.currentThread().interrupt() }
+            }
+        })
+        flowCard.addView(flowResult)
+        root.addView(flowCard)
+
         // --- 视觉接口 ---
         val visionCard = card()
-        visionCard.addView(cardTitle("视觉接口（OCR 用，可先不填）"))
-        visionCard.addView(text("读不到控件树的 App 走截图识别。B 阶段才用到，现在填不填都不影响。", 12f, sub))
+        visionCard.addView(cardTitle("云端图片理解（可选）"))
+        visionCard.addView(text("本机文字识别使用免费的离线 OCR，无需填写此处。此接口仅用于手动连通测试，不参与聊天采集；启用并测试会上传测试图片，费用由所选服务商决定。", 12f, sub))
+        val visionEnabledRow = toggleRow("启用云端图片理解", prefs.visionEnabled)
+        visionCard.addView(visionEnabledRow)
 
         val visionBaseEdit = edit(prefs.visionBaseUrl, Prefs.DEFAULT_VISION_BASE)
         val visionModelEdit = edit(prefs.visionModel, Prefs.DEFAULT_VISION_MODEL)
@@ -224,17 +291,23 @@ class SettingsActivity : AppCompatActivity() {
         visionCard.addView(label("Base URL"))
         visionCard.addView(visionBaseEdit)
         visionCard.addView(label("密钥"))
-        visionCard.addView(edit(prefs.visionKey, "留空则用回复接口密钥", password = true).also { visionKeyEdit = it })
+        visionCard.addView(edit(prefs.visionKey, "填写视觉服务商密钥；仅同域可共用", password = true).also { visionKeyEdit = it })
         visionCard.addView(label("模型"))
         visionCard.addView(visionModelEdit)
         val visionResult = resultText()
         visionCard.addView(cardBtn("测试视觉") {
+            if (visionEnabledRow.tag != true) {
+                visionResult.text = "云端图片理解已关闭，本机 OCR 仍可使用"
+                return@cardBtn
+            }
             val visionBase = visionBaseEdit.text.toString().trim()
             if (!VisionClient.supportsVision(visionBase.ifBlank { Prefs.DEFAULT_VISION_BASE })) {
                 visionResult.text = GUARD_NO_VISION
                 return@cardBtn
             }
             val probe = draftPrefs(SCRATCH_VISION) {
+                visionEnabled = true
+                judgeBaseUrl = judgeBaseEdit.text.toString()
                 judgeKey = judgeKeyEdit.text.toString().trim()
                 replyBaseUrl = replyBaseEdit.text.toString().trim().ifBlank { Prefs.DEFAULT_REPLY_BASE }
                 replyKey = replyKeyEdit.text.toString().trim()
@@ -263,7 +336,7 @@ class SettingsActivity : AppCompatActivity() {
         // =================== 分析 ===================
         root.addView(section("分析"))
         val card2 = card()
-        card2.addView(label("关系描述（给 Jev 判断用）"))
+        card2.addView(label("关系描述（用于判断与回复）"))
         val relEdit = edit(prefs.relationship, Prefs.DEFAULT_REL)
         card2.addView(relEdit)
         card2.addView(label("会话白名单（每行一个关键词，空=所有会话）"))
@@ -275,7 +348,7 @@ class SettingsActivity : AppCompatActivity() {
         card2.addView(autoRow)
 
         // --- OCR 兜底（B 阶段）---
-        val ocrFallbackRow = toggleRow("树读不到正文时用 OCR 兜底", prefs.ocrFallback)
+        val ocrFallbackRow = toggleRow("读不到文字时使用本机 OCR（免费）", prefs.ocrFallback)
         card2.addView(ocrFallbackRow)
         card2.addView(text("飞书正文是画上去的、微信伪装失效时也读不到，这时截一次屏本地识别（不上传）。", 11f, sub))
         val ocrAutoRow = toggleRow("OCR 模式自动分析", prefs.ocrAutoAnalyze)
@@ -370,6 +443,7 @@ class SettingsActivity : AppCompatActivity() {
             prefs.replyModel = replyModelEdit.text.toString().trim().ifBlank { Prefs.DEFAULT_REPLY_MODEL }
 
             prefs.visionBaseUrl = visionBaseEdit.text.toString().trim()
+            prefs.visionEnabled = visionEnabledRow.tag == true
             prefs.visionKey = visionKeyEdit.text.toString()
             prefs.visionModel = visionModelEdit.text.toString().trim().ifBlank { Prefs.DEFAULT_VISION_MODEL }
 
@@ -395,8 +469,9 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var visionKeyEdit: EditText
 
     private fun providerOf(idx: Int) = when (idx) {
-        1 -> Prefs.PROVIDER_TYPESAFE
-        2 -> Prefs.PROVIDER_CUSTOM
+        0 -> Prefs.PROVIDER_BIGMODEL
+        2 -> Prefs.PROVIDER_TYPESAFE
+        3 -> Prefs.PROVIDER_CUSTOM
         else -> Prefs.PROVIDER_OPENROUTER
     }
 
@@ -408,6 +483,7 @@ class SettingsActivity : AppCompatActivity() {
      */
     private fun resolveJudgeProvider(idx: Int, base: String): String =
         when (base.trim().trimEnd('/')) {
+            Prefs.BIGMODEL_BASE, Prefs.chatEndpoint(Prefs.BIGMODEL_BASE) -> Prefs.PROVIDER_BIGMODEL
             Prefs.DEFAULT_JUDGE_BASE_OPENROUTER -> Prefs.PROVIDER_OPENROUTER
             Prefs.DEFAULT_JUDGE_BASE_TYPESAFE -> Prefs.PROVIDER_TYPESAFE
             else -> providerOf(idx)
@@ -421,12 +497,10 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun defaultJudgeBase(provider: String): String =
-        if (provider == Prefs.PROVIDER_TYPESAFE) Prefs.DEFAULT_JUDGE_BASE_TYPESAFE
-        else Prefs.DEFAULT_JUDGE_BASE_OPENROUTER
+        Prefs.defaultJudgeBase(provider)
 
     private fun defaultJudgeModel(provider: String): String =
-        if (provider == Prefs.PROVIDER_TYPESAFE) Prefs.DEFAULT_JUDGE_MODEL_TYPESAFE
-        else Prefs.DEFAULT_JUDGE_MODEL_OPENROUTER
+        Prefs.defaultJudgeModel(provider)
 
     /**
      * A throwaway [Prefs] view carrying exactly what is in the boxes right now,

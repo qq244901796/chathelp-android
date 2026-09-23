@@ -1,0 +1,3 @@
+基于 Jev 聊天助手（https://github.com/jev-chat/jev-chat-jarvis）二次开发。
+本修改版新增智谱 BigModel 文本模型适配、模型响应校验与测试，保留本机 OCR。
+本修改版不代表上游作者出品或背书；原项目许可及声明见同目录 LICENSE、NOTICE。

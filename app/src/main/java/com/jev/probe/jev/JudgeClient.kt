@@ -42,7 +42,8 @@ class JudgeClient(private val prefs: Prefs) {
                 latencyMs = System.currentTimeMillis() - start
             )
         } catch (e: Exception) {
-            Log.w(TAG, "judge failed: ${e.message}")
+            if (e is InterruptedException) throw e
+            Log.w(TAG, "judge failed: ${e.javaClass.simpleName}")
             Analysis(null, null, null, null, null, null, null, emptyList(),
                 System.currentTimeMillis() - start, error = e.message ?: "判断接口请求失败")
         }
@@ -79,10 +80,13 @@ class JudgeClient(private val prefs: Prefs) {
         val background = ctx?.background(relationship) ?: ""
         val history = ctx?.history ?: emptyList()
         val enriched = background.isNotBlank() || history.isNotEmpty()
+        if (prefs.judgeProvider == Prefs.PROVIDER_BIGMODEL) {
+            return send(JevQuestions.buildState(snapshot, relationship, background, history), questions)
+        }
         return try {
             send(JevQuestions.buildState(snapshot, relationship, background, history), questions)
         } catch (e: ApiException) {
-            if (enriched && e.status != null && e.status in 400..499) {
+            if (enriched && e.status in listOf(400, 422)) {
                 Log.w(TAG, "judge HTTP ${e.status} with background/history; retrying plain")
                 send(JevQuestions.buildState(snapshot, relationship), questions)
             } else throw e
@@ -91,12 +95,18 @@ class JudgeClient(private val prefs: Prefs) {
 
     private fun send(state: JSONObject, questions: JSONObject): JSONObject {
         val url = prefs.judgeEndpoint()
+        if (prefs.judgeProvider == Prefs.PROVIDER_BIGMODEL) {
+            val response = HttpJson.post(url, prefs.judgeKey,
+                BigModelJudge.request(prefs.judgeModel, state, questions), Route.JUDGE)
+            return ModelJson.answers(ModelJson.content(response, Route.JUDGE), questions)
+        }
         val body = JSONObject()
             .put("model", prefs.judgeModel)
             .put("state", state)
             .put("questions", questions)
         val resp = HttpJson.post(url, prefs.judgeKey, body, Route.JUDGE, HttpJson.headersFor(url))
-        return resp.optJSONObject("answers") ?: JSONObject()
+        return resp.optJSONObject("answers")?.takeIf { it.length() > 0 }
+            ?: throw ApiException(Route.JUDGE, null, "未返回判断结果")
     }
 
     private fun parseChoice(o: JSONObject?): Choice? {
