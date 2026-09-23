@@ -60,7 +60,42 @@ class ModelJsonTest {
         val output = ModelJson.answers(response.toString(), questions).getJSONObject("best_reply")
         assertEquals(0.5 / 0.99, output.getJSONObject("probabilities").getDouble("reply_b"), 0.00001)
         answer.put("choice", "reply_a")
-        assertThrows(ApiException::class.java) { ModelJson.answers(response.toString(), questions) }
+        assertEquals("reply_b", ModelJson.answers(response.toString(), questions)
+            .getJSONObject("best_reply").getString("choice"))
+    }
+
+    @Test fun derivesOnlyUnambiguousChoiceFromCompleteValidatedProbabilities() {
+        val questions = JevQuestions.judge()
+        val response = validAnswers(questions)
+        val answer = response.getJSONObject("answers").getJSONObject("true_intent")
+        val probabilities = answer.getJSONObject("probabilities")
+        probabilities.keys().asSequence().toList().forEach { probabilities.put(it, 0.0) }
+        probabilities.put("casual_chat", 1.0)
+        answer.put("choice", "friendly_logistics") // Reproduces GLM's invented label.
+        val parsed = ModelJson.answers(response.toString(), questions).getJSONObject("true_intent")
+        assertEquals("casual_chat", parsed.getString("choice"))
+        assertEquals(probabilities.toString(), parsed.getJSONObject("probabilities").toString())
+        answer.remove("choice")
+        assertEquals("casual_chat", ModelJson.answers(response.toString(), questions)
+            .getJSONObject("true_intent").getString("choice"))
+        probabilities.put("casual_chat", 0.5).put("close_topic", 0.5)
+        val error = assertThrows(ModelFormatException::class.java) { ModelJson.answers(response.toString(), questions) }
+        assertTrue(error.message!!.contains("最高概率并列"))
+        assertFalse(error.message!!.contains("friendly_logistics"))
+        probabilities.put("casual_chat", 1.2).put("close_topic", -0.2)
+        assertThrows(ModelFormatException::class.java) { ModelJson.answers(response.toString(), questions) }
+    }
+
+    @Test fun keepsModelTieBreakWhenValidAndNeverInventsMissingConfidence() {
+        val questions = JevQuestions.rankQuestion(listOf("好呀", "我看看时间", "我们商量一下"))
+        val response = validAnswers(questions)
+        val answer = response.getJSONObject("answers").getJSONObject("best_reply")
+        answer.put("choice", "reply_b")
+        assertEquals("reply_b", ModelJson.answers(response.toString(), questions).getJSONObject("best_reply").getString("choice"))
+        answer.remove("confidence")
+        val error = assertThrows(ModelFormatException::class.java) { ModelJson.answers(response.toString(), questions, Route.RANK) }
+        assertEquals(Route.RANK, error.route)
+        assertTrue(error.message!!.contains("confidence"))
     }
 
     @Test fun acceptsStructuredRepliesAndCodeFence() {
@@ -94,5 +129,7 @@ class ModelJsonTest {
         val system = body.getJSONArray("messages").getJSONObject(0).getString("content")
         assertTrue(system.contains("true_intent"))
         assertTrue(system.contains("criteria 从 0 开始编号"))
+        val example = system.substringAfter("完整 JSON 格式示例（示例数值仅说明格式，必须按实际对话重新判断）：").substringBefore('\n')
+        assertEquals(7, ModelJson.answers(example, JevQuestions.judge()).length())
     }
 }

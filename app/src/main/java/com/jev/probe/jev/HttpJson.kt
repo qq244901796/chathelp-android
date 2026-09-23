@@ -9,10 +9,11 @@ import java.net.SocketTimeoutException
 object Route {
     const val JUDGE = "判断接口"
     const val REPLY = "回复接口"
+    const val RANK = "排序接口"
     const val VISION = "视觉接口"
 }
 
-class ApiException(val route: String, val status: Int?, val snippet: String) :
+open class ApiException(val route: String, val status: Int?, val snippet: String) :
     RuntimeException(buildMessage(route, status, snippet)) {
     companion object {
         fun buildMessage(route: String, status: Int?, snippet: String): String =

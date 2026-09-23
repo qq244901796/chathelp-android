@@ -29,8 +29,8 @@ android {
         applicationId = "com.jev.probe"
         minSdk = 30
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.4.2-glm"
+        versionCode = 8
+        versionName = "1.4.3-glm"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

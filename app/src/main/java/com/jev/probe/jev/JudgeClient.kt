@@ -96,9 +96,11 @@ class JudgeClient(private val prefs: Prefs) {
     private fun send(state: JSONObject, questions: JSONObject): JSONObject {
         val url = prefs.judgeEndpoint()
         if (prefs.judgeProvider == Prefs.PROVIDER_BIGMODEL) {
-            val response = HttpJson.post(url, prefs.judgeKey,
-                BigModelJudge.request(prefs.judgeModel, state, questions), Route.JUDGE)
-            return ModelJson.answers(ModelJson.content(response, Route.JUDGE), questions)
+            val key = prefs.judgeKey // A correction must keep the original route credentials.
+            val route = if (questions.length() == 1 && questions.has("best_reply")) Route.RANK else Route.JUDGE
+            return StructuredCompletion.request(BigModelJudge.request(prefs.judgeModel, state, questions), route,
+                post = { HttpJson.post(url, key, it, route) },
+                parse = { ModelJson.answers(it, questions, route) })
         }
         val body = JSONObject()
             .put("model", prefs.judgeModel)

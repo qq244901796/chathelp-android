@@ -6,7 +6,7 @@
 
 ## 安装和配置
 
-1. 从 [本分支 Release](https://github.com/qq244901796/chathelp-android/releases/tag/v1.4.2-glm) 下载 `chathelp-android-1.4.2-glm-release.apk`。应用名为「ChatHelp 智谱助手」，包名 `com.jev.probe.glm.release`，适用于 Android 11+ 的 ARM64 手机，可覆盖升级本分支旧发布版，与原版和调试版共存。
+1. 从 [本分支 Release](https://github.com/qq244901796/chathelp-android/releases/tag/v1.4.3-glm) 下载 `chathelp-android-1.4.3-glm-release.apk`。应用名为「ChatHelp 智谱助手」，包名 `com.jev.probe.glm.release`，适用于 Android 11+ 的 ARM64 手机，可覆盖升级本分支旧发布版，与原版和调试版共存。
 2. 在 [智谱控制台](https://bigmodel.cn/) 创建自己的通用 API Key。
 3. 打开「设置」，新安装已经选好智谱；旧配置可点击「一键应用智谱免费预设」。在判断接口中填写智谱密钥，回复密钥留空即可。
 4. 点击「测试完整流程」，使用内置虚构对话检查判断、回复、排序，然后点击页面底部「保存」。
@@ -35,6 +35,8 @@
 原版 Jev 的判断使用专用 `state/questions` 协议。本分支新增 BigModel 适配，将既有判断标准转成提示词并校验 JSON 回答；原有 Jev 供应商配置仍可使用。
 
 同一进程的智谱请求串行，最多尝试三次可重试的网络/限流错误。密钥错误不重试，格式异常不会补成固定回复。切换应用、联系人或聊天内容后，过期结果不再显示。评分、把握度和排序比例只是模型估计。
+
+结构化输出存在冗余的选项名称与概率表：当完整有效的概率表有唯一最高项时，按该最高项确定选项，兼容 GLM 自造或误写 choice 标签的情况。无法无歧义校验的输出最多要求模型纠正一次；仍无效时给出具体阶段和字段提示，不编造结果。
 
 ## OCR 与数据
 

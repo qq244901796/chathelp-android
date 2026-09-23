@@ -4,7 +4,7 @@
 
 ## 安装与使用
 
-1. 安装 `chathelp-test-chat-1.0.0-release.apk` 和 `chathelp-android-1.4.2-glm-release.apk`。旧版 ChatHelp 没有这个测试应用的适配器，必须升级；测试软件独立安装，不覆盖任何聊天软件。
+1. 安装 `chathelp-test-chat-1.0.0-release.apk` 和最新的 ChatHelp APK（当前 `chathelp-android-1.4.3-glm-release.apk`）。最低需要 ChatHelp 1.4.2-glm 才能识别这个测试应用，1.4.3-glm 修复了智谱输出格式兼容问题；测试软件独立安装，不覆盖任何聊天软件。
 2. 在 ChatHelp 中开启无障碍、悬浮窗和助手开关。使用智谱分析时，在设置中填自己的 API Key 并保存。
 3. 打开「ChatHelp 测试聊天」，默认显示小明的两条虚构对话。点 ChatHelp 悬浮球 →「分析当前对话」。
 4. 输入文字后点「模拟对方来信」，追加左侧消息；输入框为空时自动使用一句示例文字。ChatHelp 开启自动分析时，新来信会触发分析。
