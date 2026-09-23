@@ -19,6 +19,7 @@ import com.jev.probe.core.Msg
  *                       The service may fall back to screenshot + OCR. Each
  *                       adapter names below what proves "we are in a chat".
  * - messages non-empty→ normal capture.
+ * - A known empty page can set ocrFallbackAllowed=false to avoid OCR of chrome.
  *
  * The disguised accessibility service (registered as SelectToSpeakService) lets
  * us read the node tree of apps that obfuscate it for normal services (WeChat).

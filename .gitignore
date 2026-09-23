@@ -1,6 +1,7 @@
 # Build
 /build/
 /app/build/
+/test-chat/build/
 .gradle/
 *.apk
 *.ap_

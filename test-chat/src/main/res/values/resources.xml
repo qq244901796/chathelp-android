@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="TestChatTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#2563EB</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:windowBackground">#F3F6FB</item>
+    </style>
+    <item name="chat_title" type="id" />
+    <item name="chat_state" type="id" />
+    <item name="chat_messages" type="id" />
+    <item name="chat_viewport" type="id" />
+    <item name="message_me" type="id" />
+    <item name="message_other" type="id" />
+    <item name="chat_input" type="id" />
+    <item name="send_me" type="id" />
+    <item name="receive_other" type="id" />
+    <item name="switch_chat" type="id" />
+    <item name="reset_chat" type="id" />
+    <item name="clear_chat" type="id" />
+    <item name="ocr_mode" type="id" />
+</resources>

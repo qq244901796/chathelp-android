@@ -331,6 +331,13 @@ class OverlayController(private val ctx: Context) {
         if (!expanded) toggle()
     }
 
+    fun showRecognizing(expand: Boolean) {
+        ensureRoot()
+        bubble?.alpha = 1f
+        setContent(listOf(hint("正在识别屏幕文字…")))
+        if (expand && !expanded) toggle()
+    }
+
     /** How many knowledge notes / history lines went into the pending analysis. */
     fun setContextInfo(notes: Int, history: Int) {
         ctxNotes = notes; ctxHistory = history

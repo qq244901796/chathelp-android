@@ -46,7 +46,7 @@ open class ChatCaptureService : AccessibilityService() {
     private val session = AnalysisSession()
 
     /** Adapted chat apps, keyed by package name. */
-    private val adapters = listOf(WeChatAdapter(), QQAdapter(), XAdapter(), FeishuAdapter()).associateBy { it.pkg }
+    private val adapters = listOf(WeChatAdapter(), QQAdapter(), XAdapter(), FeishuAdapter(), TestChatAdapter()).associateBy { it.pkg }
 
     /** Submit to the worker, ignoring rejection after the service is torn down
      *  (a stale overlay callback must never crash the process). */
@@ -89,9 +89,7 @@ open class ChatCaptureService : AccessibilityService() {
         super.onServiceConnected()
         prefs = Prefs(this)
         overlay = OverlayController(this)
-        overlay?.onManualAnalyze = {
-            currentSnapshot?.let { pendingSnapshot = it; runAnalysis() }
-        }
+        overlay?.onManualAnalyze = { analyzeManual() }
         // Bubble menu: file the open conversation as a knowledge-base contact.
         // Contacts are never created automatically — this is the one-tap way in.
         overlay?.onSaveContact = {
@@ -153,6 +151,8 @@ open class ChatCaptureService : AccessibilityService() {
             }
         }
 
+        // Updating our progress/error panel must not recursively trigger screenshots.
+        if (event.packageName?.toString() == packageName) return
         when (type) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
@@ -176,14 +176,20 @@ open class ChatCaptureService : AccessibilityService() {
         // a transient "连接中…" title for a moment right after opening a thread.
         val snapshot = stabilizeTitle(pkg ?: "", rawSnapshot)
         if (!prefs.isAllowed(snapshot.title)) { clearConversation(); overlay?.hide(); return }
-        if (snapshot.messages.isNotEmpty() || activePkg != pkg || currentSnapshot?.title != snapshot.title) {
+        if (snapshot.messages.isNotEmpty() || activePkg != pkg || currentSnapshot?.title != snapshot.title ||
+            currentSnapshot?.sourceRevision != snapshot.sourceRevision || !snapshot.ocrFallbackAllowed) {
             trackSnapshot(pkg ?: "", snapshot)
         }
         // In a chat window but the tree holds no text (Feishu draws its bodies,
         // WeChat hides them when the disguise fails) → screenshot + OCR, subject
         // to ScreenCapture's own >=1s throttle and failure backoff.
         if (snapshot.messages.isEmpty()) {
+            if (!snapshot.ocrFallbackAllowed) {
+                overlay?.showIdle(snapshot.title)
+                return
+            }
             if (prefs.ocrFallback) {
+                if (ocrBusy) return
                 // Gate BEFORE the shot, not after the OCR. Feishu's tree is empty
                 // on every content-changed event, and a successful shot resets the
                 // failure backoff — so without this the caret blinking or an
@@ -191,10 +197,12 @@ open class ChatCaptureService : AccessibilityService() {
                 // second forever. The picture can only differ if the bubbles moved
                 // or the conversation changed, and that is exactly what the
                 // signature measures.
-                val sig = ocrSignature(pkg ?: "", snapshot.title, snapshot.bubbleRects)
+                val sig = ocrSignature(pkg ?: "", snapshot.title, snapshot.bubbleRects) + "|" + snapshot.sourceRevision.orEmpty()
                 if (sig == lastOcrSignature && overlay?.isShowing() == true) return
                 lastOcrSignature = sig
-                ocrCapture(snapshot.title, snapshot.bubbleRects, pkg ?: "", manual = false)
+                ocrCapture(snapshot.title, snapshot.bubbleRects, pkg ?: "", manual = false, sourceRevision = snapshot.sourceRevision)
+            } else {
+                overlay?.showIdle(snapshot.title)
             }
             return
         }
@@ -249,6 +257,42 @@ open class ChatCaptureService : AccessibilityService() {
         }
         snapshot.title?.let { lastGoodTitle[pkg] = it }
         return snapshot
+    }
+
+    private fun analyzeManual() {
+        if (!prefs.enabled) { overlay?.showError("助手已暂停，请先在 ChatHelp 中启用"); return }
+        if (ocrBusy) { overlay?.toast("正在识别文字，请稍候"); return }
+        // Re-read the foreground page so a stale callback cannot analyze another chat.
+        val root = rootInActiveWindow
+        val pkg = root?.packageName?.toString()
+        val raw = if (root != null) adapters[pkg]?.extract(root, resources) else null
+        if (raw != null && pkg != null) {
+            val fresh = stabilizeTitle(pkg, raw)
+            if (!prefs.isAllowed(fresh.title)) { overlay?.showError("当前会话不在允许分析的名单中"); return }
+            val cached = currentSnapshot
+            if (fresh.messages.isEmpty() && fresh.ocrFallbackAllowed) {
+                if (!prefs.ocrFallback) { overlay?.showError("读不到消息文字，本机 OCR 已关闭，请到设置中开启"); return }
+                if (analyzing && cached != null && cached.title == fresh.title && activePkg == pkg && cached.sourceRevision == fresh.sourceRevision) {
+                    overlay?.toast("正在分析，请稍候"); return
+                }
+                ocrCapture(fresh.title, fresh.bubbleRects, pkg, manual = true, sourceRevision = fresh.sourceRevision)
+                return
+            }
+            trackSnapshot(pkg, fresh)
+        } else if (pkg != activePkg || currentSnapshot?.note != OCR_NOTE) {
+            clearConversation()
+            overlay?.showError("尚未识别到聊天内容。请进入支持的聊天页面，或长按悬浮球选择“截屏识别一次”")
+            return
+        }
+        val snapshot = currentSnapshot
+        if (snapshot == null || snapshot.messages.isEmpty()) {
+            overlay?.showError("当前会话没有可分析的消息，请先添加消息")
+            return
+        }
+        if (analyzing) { overlay?.toast("正在分析，请稍候"); return }
+        main.removeCallbacks(debounce)
+        pendingSnapshot = snapshot
+        runAnalysis()
     }
 
     private fun runAnalysis() {
@@ -371,15 +415,17 @@ open class ChatCaptureService : AccessibilityService() {
      * where the bubbles are and who sent them, just not what they say) or OCR
      * the whole screen (everything else).
      */
-    private fun ocrCapture(treeTitle: String?, rects: List<BubbleRect>, pkg: String, manual: Boolean) {
-        if (ocrBusy) return
+    private fun ocrCapture(treeTitle: String?, rects: List<BubbleRect>, pkg: String, manual: Boolean, sourceRevision: String? = null) {
+        if (ocrBusy) { if (manual) overlay?.toast("正在识别文字，请稍候"); return }
         ocrBusy = true
-        trackSnapshot(pkg, ChatSnapshot(treeTitle, emptyList()))
+        trackSnapshot(pkg, ChatSnapshot(treeTitle, emptyList(), rects, sourceRevision = sourceRevision))
+        overlay?.showRecognizing(expand = manual)
         val token = session.token
         screenCapture.capture { res ->
             if (!session.isCurrent(token)) {
                 ocrBusy = false
                 if (res is ScreenCapture.Result.Ok) res.bitmap.recycle()
+                main.post { if (prefs.enabled) maybeCapture() }
                 return@capture
             }
             when (res) {
@@ -394,26 +440,36 @@ open class ChatCaptureService : AccessibilityService() {
                     // the user can act on — nagging about them would be constant.
                     val transient = res.code == ScreenCapture.CODE_THROTTLED || res.code == 3
                     if (manual || !transient) overlay?.showError(res.humanMessage)
+                    else overlay?.showIdle(treeTitle)
                 }
                 is ScreenCapture.Result.Ok -> {
                     ocr.scaleX = res.scaleX; ocr.scaleY = res.scaleY
                     ocr.originX = res.originX; ocr.originY = res.originY
-                    if (rects.isNotEmpty() && !manual) {
+                    if (rects.isNotEmpty()) {
                         // Re-measure inside the callback. The rects handed in were
                         // read before the 120ms overlay-hide wait and the shot
                         // itself; one scroll tick in between and we would crop the
-                        // rows next to the ones in the picture. Fall back to the
-                        // old rects only if the tree gives us nothing now.
-                        val fresh = rootInActiveWindow?.let { collectFeishuBubbleRects(it, resources) }
-                        ocrByRects(res.bitmap, if (fresh.isNullOrEmpty()) rects else fresh, treeTitle, pkg, token)
-                    } else ocrWholeScreen(res.bitmap, treeTitle, pkg, manual, token)
+                        // rows next to the ones in the picture. Abort if the page
+                        // disappeared rather than interpreting stale rectangles.
+                        val fresh = rootInActiveWindow?.takeIf { it.packageName?.toString() == pkg }
+                            ?.let { adapters[pkg]?.extract(it, resources) }?.let { stabilizeTitle(pkg, it) }
+                        if (fresh == null || fresh.title != treeTitle || fresh.sourceRevision != sourceRevision || fresh.bubbleRects.isEmpty()) {
+                            res.bitmap.recycle()
+                            ocrBusy = false
+                            lastOcrSignature = ""
+                            if (manual) overlay?.showError("页面已变化，请重新识别")
+                            else overlay?.showIdle(fresh?.title)
+                            return@capture
+                        }
+                        ocrByRects(res.bitmap, fresh.bubbleRects, treeTitle, pkg, manual, token, sourceRevision)
+                    } else ocrWholeScreen(res.bitmap, treeTitle, pkg, manual, token, sourceRevision)
                 }
             }
         }
     }
 
     /** One OCR pass per bubble rectangle; each rect becomes exactly one message. */
-    private fun ocrByRects(bmp: Bitmap, rects: List<BubbleRect>, title: String?, pkg: String, token: Long) {
+    private fun ocrByRects(bmp: Bitmap, rects: List<BubbleRect>, title: String?, pkg: String, manual: Boolean, token: Long, sourceRevision: String?) {
         val sx = ocr.scaleX; val sy = ocr.scaleY
         // Screen -> bitmap: drop the window origin first. A window shot does not
         // start at (0,0) in split screen or when it excludes the status bar.
@@ -430,21 +486,21 @@ open class ChatCaptureService : AccessibilityService() {
                 remaining--
                 if (remaining == 0) {
                     runCatching { bmp.recycle() }
-                    finishOcrSnapshot(ChatSnapshot(title, out.filterNotNull()), pkg, manual = false, token)
+                    finishOcrSnapshot(ChatSnapshot(title, out.filterNotNull(), sourceRevision = sourceRevision), pkg, manual, token)
                 }
             }
         }
     }
 
     /** Whole screen minus the top bar and the input area, grouped by line gaps. */
-    private fun ocrWholeScreen(bmp: Bitmap, treeTitle: String?, pkg: String, manual: Boolean, token: Long) {
+    private fun ocrWholeScreen(bmp: Bitmap, treeTitle: String?, pkg: String, manual: Boolean, token: Long, sourceRevision: String?) {
         val region = Rect(0, (bmp.height * TOP_CROP).toInt(), bmp.width, (bmp.height * BOTTOM_CROP).toInt())
         ocr.recognize(bmp, region) { lines ->
             runCatching { bmp.recycle() }
             val msgs = groupOcrLines(lines)
             val title = treeTitle?.takeIf { it.isNotBlank() }
                 ?: lines.firstOrNull()?.text?.trim()?.take(24)
-            finishOcrSnapshot(ChatSnapshot(title, msgs, note = OCR_NOTE), pkg, manual, token)
+            finishOcrSnapshot(ChatSnapshot(title, msgs, note = OCR_NOTE, sourceRevision = sourceRevision), pkg, manual, token)
         }
     }
 
@@ -494,11 +550,15 @@ open class ChatCaptureService : AccessibilityService() {
     /** Shared tail of both OCR paths: dedupe, then analyze or park the bubble. */
     private fun finishOcrSnapshot(snapshot: ChatSnapshot, pkg: String, manual: Boolean, token: Long) {
         ocrBusy = false
-        if (!session.isCurrent(token) || !prefs.enabled) return
+        if (!prefs.enabled) return
+        if (!session.isCurrent(token)) {
+            main.post { if (prefs.enabled) maybeCapture() }
+            return
+        }
         // Counts only — OCR'd chat text never goes to logcat.
         Log.i(TAG, "ocr[$pkg] msgs=${snapshot.messages.size} manual=$manual")
         if (snapshot.messages.isEmpty()) {
-            if (manual) overlay?.showError("这一屏没认出文字")
+            overlay?.showError("这一屏没认出消息文字，请调整页面后重新识别")
             return
         }
         if (!prefs.isAllowed(snapshot.title)) { overlay?.hide(); return }
@@ -536,7 +596,9 @@ open class ChatCaptureService : AccessibilityService() {
                 if (root.packageName?.toString() != pkg) return false
                 val adapter = adapters[pkg] ?: return false
                 val target = adapter.extract(root, resources) ?: return false
-                return target.title == title
+                val captured = currentSnapshot
+                return target.title == title && target.sourceRevision == captured?.sourceRevision &&
+                    (target.messages.isEmpty() || target.signature() == captured?.signature())
             }
             if (!currentTarget()) {
                 main.post { overlay?.toast("会话已变化，请重新分析后再填入") }

@@ -18,6 +18,12 @@ for name in ("CHANGELOG.md", "dependencies.json"):
     shutil.copyfile(ROOT / name, output / name)
 shutil.copyfile(ROOT / "README.md", output / "INSTALL.txt")
 assets = [apk, source, output / "CHANGELOG.md", output / "dependencies.json", output / "INSTALL.txt"]
+fixture_version = re.search(r'versionName = "([^"]+)"', (ROOT / "test-chat/build.gradle.kts").read_text(encoding="utf-8")).group(1)
+fixture = output / ("chathelp-test-chat-" + fixture_version + "-release.apk")
+shutil.copyfile(ROOT / "test-chat/build/outputs/apk/release/test-chat-release.apk", fixture)
+shutil.copyfile(ROOT / "test-chat/README.md", output / "TEST-CHAT.txt")
+shutil.copyfile(ROOT / "test-chat/dependencies.json", output / "test-chat-dependencies.json")
+assets.extend([fixture, output / "TEST-CHAT.txt", output / "test-chat-dependencies.json"])
 lines = []
 for path in assets:
     with path.open("rb") as stream:

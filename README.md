@@ -6,7 +6,7 @@
 
 ## 安装和配置
 
-1. 从 [本分支 Release](https://github.com/qq244901796/chathelp-android/releases/tag/v1.4.1-glm) 下载 `chathelp-android-1.4.1-glm-release.apk`。应用名为「ChatHelp 智谱助手」，包名 `com.jev.probe.glm.release`，适用于 Android 11+ 的 ARM64 手机，可覆盖升级本分支 1.4-glm 发布版，与原版和调试版共存。
+1. 从 [本分支 Release](https://github.com/qq244901796/chathelp-android/releases/tag/v1.4.2-glm) 下载 `chathelp-android-1.4.2-glm-release.apk`。应用名为「ChatHelp 智谱助手」，包名 `com.jev.probe.glm.release`，适用于 Android 11+ 的 ARM64 手机，可覆盖升级本分支旧发布版，与原版和调试版共存。
 2. 在 [智谱控制台](https://bigmodel.cn/) 创建自己的通用 API Key。
 3. 打开「设置」，新安装已经选好智谱；旧配置可点击「一键应用智谱免费预设」。在判断接口中填写智谱密钥，回复密钥留空即可。
 4. 点击「测试完整流程」，使用内置虚构对话检查判断、回复、排序，然后点击页面底部「保存」。
@@ -25,6 +25,10 @@
 免费指上述模型当前的通用 API 推理价格，不代表无限并发或未来价格保证。参见 [智谱官方定价](https://docs.bigmodel.cn/cn/guide/start/pricing) 和 [速率限制](https://docs.bigmodel.cn/cn/api/rate-limit)。程序不会自动改用收费模型。其他供应商预设属于高级配置，费用由对应平台决定。
 
 ## 工作方式
+
+### 没有聊天账号也能测试
+
+同时安装 Release 中的 `chathelp-test-chat-1.0.0-release.apk`，打开「ChatHelp 测试聊天」。它提供两组虚构会话、模拟双方消息、普通文字和 OCR 测试模式，可以验证分析与回复填入。必须配合 ChatHelp 1.4.2-glm 或更新版。详细步骤见 [测试聊天说明](test-chat/README.md)。
 
 无障碍读取文字 → 读不到时本机 OCR → 智谱七项判断 → 生成三条回复 → 智谱排序 → 悬浮窗展示 → 复制或填入。
 
@@ -49,6 +53,7 @@
 
 ```powershell
 .\gradlew.bat :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest
+.\gradlew.bat :test-chat:installRelease
 .\gradlew.bat :app:connectedDebugAndroidTest
 ```
 

@@ -28,13 +28,17 @@ data class ChatSnapshot(
     val title: String?,
     val messages: List<Msg>,
     val bubbleRects: List<BubbleRect> = emptyList(),
-    val note: String? = null
+    val note: String? = null,
+    /** Optional app-provided generation; detects resets / equal-size drawn-text edits. */
+    val sourceRevision: String? = null,
+    /** Known empty text conversations must not OCR their toolbar as a message. */
+    val ocrFallbackAllowed: Boolean = true
 ) {
     val latestFrom: String? get() = messages.lastOrNull()?.side
 
     /** A stable signature of the last few messages, to detect real changes. */
     fun signature(): String =
-        messages.takeLast(6).joinToString("|") { "${it.side}:${it.text}" }
+        (sourceRevision?.let { "$it|" } ?: "") + messages.takeLast(6).joinToString("|") { "${it.side}:${it.text}" }
 }
 
 /** Jev's judgment result for one snapshot, plus the ranked candidate replies. */

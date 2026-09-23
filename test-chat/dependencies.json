@@ -1,0 +1,14 @@
+[
+  {
+    "coordinate": "org.jetbrains.kotlin:kotlin-stdlib:1.9.24",
+    "artifact": "kotlin-stdlib-1.9.24.jar",
+    "sha256": "858b902696da9cf585ab9d98ffc1c2712269828354dfe9107e3711b084a36468",
+    "license": "Apache-2.0"
+  },
+  {
+    "coordinate": "org.jetbrains:annotations:13.0",
+    "artifact": "annotations-13.0.jar",
+    "sha256": "ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478",
+    "license": "Apache-2.0"
+  }
+]
